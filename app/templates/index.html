@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-950">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Faster-Whisper 文字起こし</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+      body {
+        font-feature-settings: "palt" 1;
+      }
+      .tab-active {
+        color: #fff;
+        background-color: rgba(79, 70, 229, 0.95);
+        box-shadow: 0 20px 25px -5px rgba(79, 70, 229, 0.35),
+          0 8px 10px -6px rgba(79, 70, 229, 0.4);
+      }
+      .tab-inactive {
+        color: #94a3b8;
+        transition: color 150ms ease, background-color 150ms ease;
+      }
+      .tab-inactive:hover {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+      .glass-panel {
+        background: rgba(15, 23, 42, 0.72);
+        backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-white">
+    <div class="relative isolate">
+      <div class="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          class="absolute left-1/2 top-[-10%] w-[800px] h-[800px] -translate-x-1/2 rounded-full bg-gradient-to-br from-indigo-500/40 via-purple-500/30 to-cyan-500/20 blur-[160px]"
+        ></div>
+        <div
+          class="absolute right-0 bottom-0 w-[480px] h-[480px] translate-x-1/3 translate-y-1/3 rounded-full bg-gradient-to-tr from-sky-500/20 to-violet-500/10 blur-[140px]"
+        ></div>
+      </div>
+
+      <div class="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <header
+          class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p class="text-sm uppercase tracking-[0.35em] text-slate-400">
+              Realtime + Precision
+            </p>
+            <h1 class="mt-2 text-4xl font-semibold text-white sm:text-5xl">
+              Faster-Whisper Studio
+            </h1>
+            <p class="mt-4 max-w-2xl text-base text-slate-300">
+              ブラウザで録音するだけでGPUアクセラレーションされたFaster-Whisperが即座に文字へ変換。リアルタイムと高精度の二つのモードをワンタップで切り替えられる音声UXです。
+            </p>
+          </div>
+          <div class="grid grid-cols-2 gap-4 sm:w-auto sm:grid-cols-1">
+            <div class="glass-panel rounded-2xl px-5 py-4">
+              <p class="text-sm text-slate-400">平均レイテンシ</p>
+              <p class="mt-1 text-2xl font-semibold text-white">0.35× RTF</p>
+            </div>
+            <div class="glass-panel rounded-2xl px-5 py-4">
+              <p class="text-sm text-slate-400">サポート言語</p>
+              <p class="mt-1 text-2xl font-semibold text-white">50+</p>
+            </div>
+          </div>
+        </header>
+
+        <div
+          class="mt-10 flex flex-wrap items-center gap-3 text-sm text-slate-400"
+        >
+          <div
+            class="flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-white"
+          >
+            <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+            GPU Ready
+          </div>
+          <p>CUDA / ROCm / CPU 自動判別</p>
+        </div>
+
+        <div class="mt-10 glass-panel rounded-3xl p-1">
+          <nav
+            class="grid grid-cols-2 gap-1 rounded-3xl bg-white/5 p-1"
+            aria-label="Tabs"
+          >
+            <button
+              id="tab-realtime"
+              class="tab-active rounded-2xl py-4 text-sm font-medium transition-all"
+            >
+              リアルタイム文字起こし
+            </button>
+            <button
+              id="tab-file"
+              class="tab-inactive rounded-2xl py-4 text-sm font-medium transition-all"
+            >
+              ファイル文字起こし
+            </button>
+          </nav>
+
+          <div
+            id="content-realtime"
+            class="grid gap-8 p-8 lg:grid-cols-[minmax(0,_420px)_1fr]"
+          >
+            <section class="space-y-6">
+              <div class="glass-panel rounded-2xl p-5">
+                <p class="text-sm text-slate-400">入力設定</p>
+                <div class="mt-4 flex flex-col gap-4">
+                  <div>
+                    <label
+                      class="text-xs uppercase tracking-widest text-slate-400"
+                      >言語</label
+                    >
+                    <select
+                      id="realtime-language"
+                      class="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value="ja">日本語</option>
+                      <option value="en">English</option>
+                      <option value="zh">中文</option>
+                      <option value="ko">한국어</option>
+                    </select>
+                  </div>
+
+                  <div class="flex flex-wrap gap-3">
+                    <button
+                      id="start-recording"
+                      class="group inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500/90 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-500"
+                    >
+                      <span
+                        class="inline-block h-2 w-2 rounded-full bg-white group-hover:scale-125"
+                      ></span>
+                      録音開始
+                    </button>
+                    <button
+                      id="stop-recording"
+                      class="hidden inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-500/80 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-500/30 transition hover:bg-rose-500"
+                    >
+                      <span
+                        class="inline-block h-2 w-2 rounded-full bg-white"
+                      ></span>
+                      録音停止
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                id="realtime-status"
+                class="hidden rounded-2xl border border-white/10 bg-white/5 p-5"
+              >
+                <div class="flex items-center gap-3">
+                  <div
+                    data-indicator
+                    class="h-3 w-3 animate-pulse rounded-full bg-sky-400"
+                  ></div>
+                  <p id="realtime-status-text" class="text-sm text-slate-300">
+                    処理中...
+                  </p>
+                </div>
+                <p
+                  class="mt-2 text-xs text-slate-500"
+                  id="realtime-device-hint"
+                >
+                  GPU/CPUの利用状況をモニタリング中...
+                </p>
+              </div>
+
+              <div class="space-y-3">
+                <p class="text-xs uppercase tracking-[0.4em] text-slate-500">
+                  最近の成果
+                </p>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div
+                    class="rounded-2xl border border-white/10 bg-gradient-to-br from-indigo-500/10 to-transparent p-4"
+                  >
+                    <p class="text-sm text-slate-400">リアルタイム処理</p>
+                    <p class="text-2xl font-semibold text-white">~150 ms</p>
+                  </div>
+                  <div
+                    class="rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-transparent p-4"
+                  >
+                    <p class="text-sm text-slate-400">平均精度</p>
+                    <p class="text-2xl font-semibold text-white">> 97%</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="flex flex-col gap-4">
+              <div
+                class="rounded-3xl border border-white/10 bg-black/20 p-6 shadow-2xl shadow-black/40"
+              >
+                <div class="flex items-center justify-between">
+                  <p class="text-xs uppercase tracking-[0.5em] text-slate-500">
+                    Transcript
+                  </p>
+                  <button
+                    id="clear-realtime"
+                    class="text-xs text-slate-400 hover:text-white"
+                  >
+                    クリア
+                  </button>
+                </div>
+                <div
+                  id="realtime-transcript"
+                  class="mt-4 min-h-[360px] max-h-[500px] overflow-y-auto rounded-2xl border border-white/5 bg-gradient-to-b from-slate-900/80 to-slate-900/40 p-5 text-sm text-slate-100 shadow-inner shadow-black/40 whitespace-pre-wrap"
+                ></div>
+                <div class="mt-6">
+                  <div class="flex items-center justify-between">
+                    <p
+                      class="text-xs uppercase tracking-[0.5em] text-slate-500"
+                    >
+                      Precision Window
+                    </p>
+                  </div>
+                  <div
+                    id="precise-transcript"
+                    class="mt-3 max-h-[420px] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/60 p-5 text-xs text-slate-200 shadow-inner shadow-black/30 whitespace-pre-wrap"
+                  ></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="content-file" class="hidden p-8">
+            <div class="grid gap-8 lg:grid-cols-[minmax(0,_420px)_1fr]">
+              <section class="space-y-6">
+                <div class="glass-panel rounded-2xl p-6">
+                  <p class="text-sm text-slate-400">推論パラメータ</p>
+                  <div class="mt-4 space-y-5">
+                    <div>
+                      <label
+                        class="text-xs uppercase tracking-[0.4em] text-slate-500"
+                        >言語</label
+                      >
+                      <select
+                        id="file-language"
+                        class="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                      >
+                        <option value="ja">日本語</option>
+                        <option value="en">English</option>
+                        <option value="zh">中文</option>
+                        <option value="ko">한국어</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        class="text-xs uppercase tracking-[0.4em] text-slate-500"
+                        >精度（ビームサイズ）</label
+                      >
+                      <select
+                        id="file-beam-size"
+                        class="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                      >
+                        <option value="1">1 - 最速</option>
+                        <option value="3">3 - 標準</option>
+                        <option value="5" selected>5 - 高精度</option>
+                        <option value="10">10 - 最高精度</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="rounded-2xl border border-dashed border-white/20 bg-white/5 p-8 text-center"
+                >
+                  <svg
+                    class="mx-auto h-14 w-14 text-slate-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 48 48"
+                  >
+                    <path
+                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                    />
+                  </svg>
+                  <p class="mt-4 text-sm text-slate-300">
+                    MP3 / WAV / MP4 / M4A / WEBM / FLAC / OGG (最大500MB)
+                  </p>
+                  <label
+                    for="file-upload"
+                    class="mt-4 inline-flex cursor-pointer items-center rounded-full bg-white/10 px-6 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+                  >
+                    ファイルを選択
+                    <input
+                      id="file-upload"
+                      name="file-upload"
+                      type="file"
+                      class="sr-only"
+                      accept="audio/*,video/*"
+                    />
+                  </label>
+                  <p id="file-name" class="mt-3 text-sm text-slate-400"></p>
+                </div>
+
+                <button
+                  id="upload-btn"
+                  class="w-full rounded-2xl bg-indigo-500/90 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled
+                >
+                  文字起こし開始
+                </button>
+
+                <div
+                  id="file-progress"
+                  class="hidden rounded-2xl border border-white/10 bg-white/5 p-5"
+                >
+                  <div class="flex items-center gap-3">
+                    <svg
+                      class="h-5 w-5 animate-spin text-indigo-300"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <p class="text-sm text-slate-300">
+                      モデル推論を実行しています...
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  id="file-error"
+                  class="hidden rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4"
+                >
+                  <p class="text-sm font-medium text-rose-200">
+                    エラーが発生しました
+                  </p>
+                  <p
+                    id="file-error-message"
+                    class="mt-2 text-sm text-rose-200/80"
+                  ></p>
+                </div>
+              </section>
+
+              <section class="space-y-4">
+                <div
+                  id="file-result"
+                  class="hidden rounded-3xl border border-white/10 bg-black/30 p-6 shadow-2xl shadow-black/50"
+                >
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <div>
+                      <p
+                        class="text-xs uppercase tracking-[0.4em] text-slate-500"
+                      >
+                        Transcript
+                      </p>
+                      <p
+                        class="mt-1 text-base text-slate-300"
+                        id="result-info"
+                      ></p>
+                    </div>
+                    <div class="flex gap-2">
+                      <button
+                        id="copy-btn"
+                        class="rounded-full border border-white/10 px-4 py-2 text-xs text-white transition hover:bg-white/10"
+                      >
+                        コピー
+                      </button>
+                      <button
+                        id="download-btn"
+                        class="rounded-full bg-white/10 px-4 py-2 text-xs text-white transition hover:bg-white/20"
+                      >
+                        JSONで保存
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    id="file-transcript"
+                    class="mt-4 max-h-[540px] overflow-y-auto rounded-2xl border border-white/5 bg-slate-950/40 p-5 text-sm text-slate-100 shadow-inner shadow-black/60"
+                  ></div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
