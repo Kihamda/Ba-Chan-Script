@@ -1,116 +1,65 @@
-# Faster-Whisper 文字起こし Web アプリ
+# Ba-Chan Script (速攻文字起こし)
 
-faster-whisper を使った高速かつ高精度な文字起こし Web アプリケーション
+Flet + faster-whisper を使用した、ネイティブ/ウェブ両対応のハイパフォーマンス文字起こしアプリです。
+リアルタイム録音と長時間ファイルの文字起こしを、GPU/CPU の力を最大限引き出して実行します。
 
-## 機能
+## ✨ 主な機能
 
-### 1. リアルタイム文字起こしモード
+### 🎤 リアルタイム録音 & 文字起こし
+- マイク入力からの音声をリアルタイムにテキスト化
+- 直近 30 秒のコンテキストを表示
+- 録音終了時に自動でファイル保存 & 編集モードへ移行
 
-- マイクから直接音声を録音して高速に文字起こし
-- WebSocket を使ったリアルタイム処理
-- 軽量モデル（base）で高速処理
+### 📂 ファイル文字起こし & 編集
+- **無制限長対応**: 何時間の音声でもストリーミング処理で安定して文字起こし
+- **編集機能**:
+    - 波形を見ながら（現在は数値指定）トリミング
+    - **ノイズ除去**: AI ベースのノイズ除去フィルタ搭載
+    - 再エンコード（WAV / MP3 / FLAC）
+    - 文字起こし結果の保存（TXT / SRT）
+- **高速処理**: `faster-whisper` エンジンにより、通常の実時間の数倍〜数十倍の速度で解析
 
-### 2. ファイルアップロードモード
+### ⚙️ 高度な設定
+- **モデル選択**: `tiny` から `large-v3` まで、精度と速度のバランスを自在に選択
+- **ハードウェア加速**: NVIDIA GPU (CUDA) 対応。CPU モードでも `int8` 量子化で高速化
+- **音声設定**: サンプルレート、レイテンシ、ブロックサイズを詳細にチューニング可能
+- **事前ロード**: 起動時または手動でモデルをウォームアップして初回推論遅延を削減
 
-- 音声/動画ファイルをアップロードして高精度に文字起こし
-- 大型モデル（large-v3）で最高精度
-- タイムスタンプ付き文字起こし結果
-- JSON 形式でのエクスポート機能
-
-## 対応フォーマット
-
-- MP3, WAV, MP4, M4A, WEBM, FLAC, OGG
-- 最大ファイルサイズ: 500MB
-
-## セットアップ
+## 🚀 セットアップと実行
 
 ### 前提条件
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) (推奨) または pip
 
-- Python 3.11 以上
-- uv（Python パッケージマネージャー）
+### インストール & 起動
 
-### インストール
+```bash
+# デスクトップアプリとして起動
+uv run flet run
 
-```powershell
-# 依存パッケージのインストール（既に完了済み）
-uv sync
-
-# アプリケーション起動
-uv run python main.py
+# Web アプリとして起動
+uv run flet run --web
 ```
 
-ブラウザで `http://127.0.0.1:5000` を開く
+初回起動時にモデルのダウンロードが行われます（`models/` ディレクトリにキャッシュ）。
 
-## CUDA 対応（オプション）
+## 📦 ビルド
 
-GPU で高速化したい場合は CUDA 対応の PyTorch をインストール
+各プラットフォーム向けのバイナリ生成には `flet build` を使用します。
 
-```powershell
-uv add torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```bash
+flet build windows -v
+flet build macos -v
+flet build apk -v
 ```
 
-## 使い方
+詳細: [Flet Publishing Guide](https://docs.flet.dev/publish/)
 
-### リアルタイムモード
+## 🛠️ 技術スタック
 
-1. 「リアルタイム文字起こし」タブを選択
-2. 言語を選択
-3. 「録音開始」ボタンをクリック
-4. 話す
-5. 「録音停止」ボタンをクリック
-6. 自動的に文字起こしが開始される
+- **UI**: [Flet](https://flet.dev/) (Flutter for Python)
+- **AI Engine**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CTranslate2)
+- **Audio Processing**: `sounddevice`, `numpy`, `scipy`, `noisereduce`
 
-### ファイルアップロードモード
-
-1. 「ファイル文字起こし」タブを選択
-2. 言語と精度（ビームサイズ）を選択
-3. 音声ファイルをドラッグ&ドロップまたは選択
-4. 「文字起こし開始」ボタンをクリック
-5. 処理完了後、結果が表示される
-6. 必要に応じてコピーまたは JSON 形式でダウンロード
-
-## モデルについて
-
-### リアルタイムモード: base
-
-- サイズ: 約 140MB
-- 速度: 非常に高速
-- 精度: 標準
-
-### ファイルモード: large-v3
-
-- サイズ: 約 3GB
-- 速度: やや遅い
-- 精度: 最高
-
-初回起動時にモデルが自動ダウンロードされます（./models ディレクトリ）
-
-## 技術スタック
-
-- **バックエンド**: Flask, Flask-SocketIO
-- **文字起こしエンジン**: faster-whisper (CTranslate2)
-- **フロントエンド**: Tailwind CSS, Socket.IO
-- **パッケージ管理**: uv
-
-## パフォーマンス
-
-### CPU（Intel Core i7-12700）
-
-- リアルタイムモード: RTF 0.3x 程度（3 秒の音声を 1 秒で処理）
-- 高精度モード: RTF 1.5x 程度（3 秒の音声を 4.5 秒で処理）
-
-### GPU（NVIDIA RTX 3060）
-
-- リアルタイムモード: RTF 0.1x 程度
-- 高精度モード: RTF 0.4x 程度
-
-RTF (Real-Time Factor): 音声時間に対する処理時間の比率。小さいほど高速
-
-## ライセンス
-
-MIT
-
-## 参考
-
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
-- [OpenAI Whisper](https://github.com/openai/whisper)
+---
+Copyright (C) 2026 Ba-Chan Script Team

@@ -1,14 +1,32 @@
 [project]
-name = "whisper-transcription-app"
+name = "ba-chan-script"
 version = "0.1.0"
-description = "Faster-Whisper文字起こしWebアプリ"
+description = ""
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "av>=11.0.0",
-    "faster-whisper>=1.2.1",
-    "flask>=3.1.2",
-    "flask-cors>=6.0.1",
-    "flask-socketio>=5.5.1",
-    "python-multipart>=0.0.20",
+requires-python = ">=3.12"
+authors = [
+    { name = "Flet developer", email = "you@example.com" }
 ]
+dependencies = [
+  "flet>=0.80.5",
+  "faster-whisper>=1.2.1",
+  "sounddevice>=0.5.5",
+  "numpy>=2.4.2",
+  "av>=16.1.0",
+  "noisereduce>=3.0.0",
+  "scipy>=1.17.0",
+]
+
+[dependency-groups]
+dev = [
+  "flet[all]>=0.80.0",
+]
+
+[tool.flet]
+org = "com.mycompany"
+product = "ba-chan-script"
+company = "Flet"
+copyright = "Copyright (C) 2026 by Flet"
+
+[tool.flet.app]
+path = "src"
